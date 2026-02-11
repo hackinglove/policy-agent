@@ -1,0 +1,67 @@
+name: Daily Policy Crawl (Gitee)
+
+on:
+  schedule:
+    # 每天北京时间 09:00 (UTC 01:00) 运行
+    - cron: '0 1 * * *'
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  crawl_and_deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        # Gitee Actions 兼容 GitHub Actions 语法
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          playwright install chromium
+
+      - name: Restore DB
+        run: python import_data.py
+
+      - name: Run Crawler
+        env:
+          # 需要在 Gitee 仓库设置 -> 环境变量 中配置这些
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
+        run: python main.py --now
+
+      - name: Export Data
+        run: python export_data.py
+
+      - name: Commit Data
+        run: |
+          git config --global user.name "Gitee Action Bot"
+          git config --global user.email "bot@gitee.com"
+          git add docs/policies.json docs/index.html
+          git commit -m "chore: auto update data" || echo "No changes"
+          git push origin main
+
+      - name: Deploy to Gitee Pages
+        # 使用社区大神的 Action 自动更新 Gitee Pages
+        # 注意：Gitee Pages 免费版必须模拟登录才能刷新，所以需要密码
+        uses: yanglbme/gitee-pages-action@main
+        with:
+          # 你的 Gitee 用户名
+          gitee-username: ${{ secrets.GITEE_USERNAME }}
+          # 你的 Gitee 密码 (或者私人令牌，取决于该 Action 要求，通常是密码)
+          gitee-password: ${{ secrets.GITEE_PASSWORD }}
+          # 你的仓库名 (格式: 用户名/仓库名)
+          gitee-repo: hackinglove/policy-agent
+          # 部署分支
+          branch: main
+          # 部署目录
+          directory: docs
