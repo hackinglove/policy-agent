@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 import re
 import time
 from urllib.parse import urljoin
-from .utils import logger
+from .utils import logger, normalize_date
 
 class PolicyCrawler:
     def __init__(self, config, sources, storage, summarizer=None):
@@ -142,6 +142,9 @@ class PolicyCrawler:
                                         m2 = re.search(r'[t/](\d{4})(\d{2})(\d{2})[_/.]', full_url)
                                         if m2:
                                             date_str = f"{m2.group(1)}-{m2.group(2)}-{m2.group(3)}"
+
+                                # 规整日期格式 (YYYY-MM-DD)
+                                date_str = normalize_date(date_str)
 
                                 logger.debug(f"检查: {title} | {date_str}")
                                 

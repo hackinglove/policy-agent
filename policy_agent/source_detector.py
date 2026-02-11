@@ -1,123 +1,109 @@
-import json
-import logging
-import asyncio
-from openai import OpenAI
 from bs4 import BeautifulSoup
-from playwright.async_api import async_playwright
-# try import from crawler, but source_detector should be independent or share utils
-# Let's keep it simple and independent or reuse some logic if needed.
-
-logger = logging.getLogger(__name__)
+from playwright.sync_api import sync_playwright
+from openai import OpenAI
+import json
+import re
+from .utils import logger
 
 class SourceDetector:
     def __init__(self, config):
         self.config = config
-        self.api_key = config['summary'].get('api_key')
-        self.base_url = config['summary'].get('base_url')
-        self.model = config['summary'].get('model')
-        
-        if not self.api_key:
-             # Fallback or error, but let's assume UI handles checking
-             pass
-        
-        self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
+        self.client = None
+        self.api_key = config.get('summary', {}).get('api_key')
+        if self.api_key and not self.api_key.startswith("${"):
+             try:
+                self.client = OpenAI(
+                    api_key=self.api_key,
+                    base_url=config.get('summary', {}).get('base_url', "https://api.openai.com/v1")
+                )
+             except Exception as e:
+                logger.error(f"Detector LLM init failed: {e}")
 
-    async def _fetch_page(self, url):
-        """Fetch page content using Playwright"""
-        async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
-            page = await browser.new_page()
-            try:
-                await page.goto(url, timeout=30000)
-                await page.wait_for_load_state("networkidle")
-                # Wait a bit for dynamic content
-                await asyncio.sleep(2) 
-                content = await page.content()
-                return content
-            except Exception as e:
-                logger.error(f"Failed to fetch {url}: {e}")
-                raise e
-            finally:
-                await browser.close()
-
-    def _simplify_html(self, html):
-        """Simplify HTML to send to LLM (remove scripts, styles, etc.)"""
-        soup = BeautifulSoup(html, 'html.parser')
-        
-        # Remove clutter
-        for tag in soup(['script', 'style', 'svg', 'iframe', 'footer', 'nav']):
-            tag.decompose()
-            
-        # Try to find the main content area if possible, or just send body
-        # For listing pages, usually 'ul' or 'table' or 'div' with repeated items
-        
-        # Let's keep data-dense parts.
-        # Strategy: Get the top 2-3 container candidates that have list items.
-        
-        # Just return body text with structure for now, but keep it small for token limit.
-        # Actually sending `soup.prettify()` of whole body might be too big.
-        
-        # Heuristic: Find elements with repeated structures (li, tr, div.item)
-        
-        # For now, let's truncate to first 100kb of prettified html or use a smarter approach.
-        # Let's try to extract `a` tags and their parents.
-        
-        return soup.prettify()[:15000] # Hard truncate for context window safety if not using 128k model
-
-    def analyze(self, url):
-        """Analyze URL and return predicted selectors"""
-        import asyncio
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            html = loop.run_until_complete(self._fetch_page(url))
-        except Exception as e:
-            return None, f"Fetch failed: {str(e)}"
-        finally:
-            loop.close()
-            
-        simplified_html = self._simplify_html(html)
-        
-        prompt = f"""
-You are an expert web scraper. I need CSS selectors to extract a list of policy documents from this news/policy list page.
-The HTML snippet is provided below.
-
-I need a JSON object with the following keys:
-- "item": The CSS selector for the container of EACH policy item (e.g., "ul.list li" or "div.news-item").
-- "title": The CSS selector for the title text (relative to "item", e.g., "a" or "h3 a").
-- "link": The CSS selector for the detailed link (relative to "item", e.g., "a").
-- "date": The CSS selector for the publishing date (relative to "item", e.g., "span.date").
-
-Evaluate the HTML carefully. Look for repeated patterns of links and dates.
-Return ONLY valid JSON.
-
-HTML Snippet:
-```html
-{simplified_html}
-```
+    def detect(self, url):
         """
+        自动分析网页并生成选择器配置
+        """
+        if not self.client:
+            raise Exception("LLM Client not initialized. Please configure API KEY first.")
+
+        logger.info(f"正在分析目标网站: {url}")
         
+        html_sample = ""
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_page()
+            try:
+                page.goto(url, timeout=30000, wait_until="domcontentloaded")
+                # 等待一会儿以防动态加载
+                page.wait_for_timeout(2000)
+                html_content = page.content()
+                
+                # 清洗 HTML，减少 Token 消耗
+                soup = BeautifulSoup(html_content, 'html.parser')
+                
+                # 移除无关标签
+                for tag in soup(['script', 'style', 'svg', 'iframe', 'footer', 'header', 'nav']):
+                    tag.decompose()
+                
+                # 获取 body 内容，截取前 15000 字符 (足够覆盖列表区)
+                body = soup.find('body')
+                if body:
+                    html_sample = str(body)[:15000]
+                else:
+                    html_sample = str(soup)[:15000]
+                    
+            except Exception as e:
+                browser.close()
+                raise Exception(f"Failed to load page: {e}")
+            finally:
+                browser.close()
+
+        # 调用 LLM 分析
+        prompt = (
+            f"这是一个政府政策列表网页的 HTML 源码片段。我需要提取政策列表的 CSS 选择器。\n"
+            f"目标是从列表中提取：1. 列表项容器(item) 2. 并在由于item内部提取：标题(title)、链接(link, href属性)、发布日期(date)。\n\n"
+            f"HTML片段：\n```html\n{html_sample}\n```\n\n"
+            f"【要求】：\n"
+            f"1. 请返回一个标准的 JSON 对象，格式如下：\n"
+            f'{{"selectors": {{"item": "css_selector", "title": "css_selector", "link": "css_selector", "date": "css_selector"}}}}\n'
+            f"2. title/link/date 的选择器应该是相对于 item 的相对选择器。\n"
+            f"3. 即使 HTML 复杂，也请尽量分析出最可能的结构。只返回 JSON，不要 Markdown 格式。"
+        )
+
         try:
             response = self.client.chat.completions.create(
-                model=self.model,
+                model=self.config.get('summary', {}).get('model', 'gpt-3.5-turbo'),
                 messages=[
-                    {"role": "system", "content": "You are a helpful assistant that outputs JSON only."},
+                    {"role": "system", "content": "你是一个熟练的爬虫工程师和 CSS 选择器专家。"},
                     {"role": "user", "content": prompt}
                 ],
-                response_format={"type": "json_object"}
+                temperature=0.1
             )
-            content = response.choices[0].message.content
-            logger.info(f"LLM Response: {content}")
-            result = json.loads(content)
-            return result, None
-        except Exception as e:
-            logger.error(f"LLM analysis failed: {e}")
-            return None, f"Analysis failed: {str(e)}"
+            
+            result_text = response.choices[0].message.content.strip()
+            # 清理 JSON
+            result_text = result_text.replace("```json", "").replace("```", "").strip()
+            
+            data = json.loads(result_text)
+            
+            # 构造完整配置
+            source_config = {
+                "name": "New Source (Auto)",
+                "url": url,
+                "selectors": data.get("selectors", {}),
+                "is_dynamic": False # 默认先设为 False，大部分政府网站不需要 dynamic
+            }
+            
+            # 补全 name Title
+            try:
+                soup = BeautifulSoup(html_sample, 'html.parser')
+                page_title = soup.title.string.strip() if soup.title else "Unknown Site"
+                source_config['name'] = page_title[:20]
+            except:
+                pass
+                
+            return source_config
 
-if __name__ == "__main__":
-    # Test
-    from .utils import load_config
-    c = load_config()
-    detector = SourceDetector(c)
-    # res, err = detector.analyze("https://www.sheitc.sh.gov.cn/zcfg/index.html")
-    # print(res, err)
+        except Exception as e:
+            logger.error(f"AI Analysis Failed: {e}")
+            raise Exception(f"AI Analysis Failed: {e}")
