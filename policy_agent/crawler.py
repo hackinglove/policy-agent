@@ -13,6 +13,7 @@ class PolicyCrawler:
         self.storage = storage
         self.summarizer = summarizer
         self.keywords = config.get('keywords', [])
+        self.exclude_keywords = config.get('exclude_keywords', [])
         
     def _is_yesterday(self, date_str):
         """
@@ -52,9 +53,18 @@ class PolicyCrawler:
         return False
 
     def _match_keywords(self, text):
-        """检查文本是否包含关键词"""
+        """检查文本是否包含关键词，且不包含排除词"""
         if not text:
             return False
+            
+        # 1. 检查排除词 (Explicit exclusion)
+        # 只要标题包含任何排除词，立刻判定为不匹配
+        for ex_kw in self.exclude_keywords:
+            if ex_kw in text:
+                logger.debug(f"排除: {text} (包含 '{ex_kw}')")
+                return False
+                
+        # 2. 检查包含词 (Inclusion)
         for kw in self.keywords:
             if kw in text:
                 return True
