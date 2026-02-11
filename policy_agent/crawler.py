@@ -12,6 +12,7 @@ class PolicyCrawler:
         self.sources = sources
         self.storage = storage
         self.summarizer = summarizer
+        self.keywords = config.get('keywords', [])
         
     def _is_yesterday(self, date_str):
         """
@@ -48,6 +49,15 @@ class PolicyCrawler:
                 
         if parsed_date:
             return parsed_date == yesterday
+        return False
+
+    def _match_keywords(self, text):
+        """检查文本是否包含关键词"""
+        if not text:
+            return False
+        for kw in self.keywords:
+            if kw in text:
+                return True
         return False
 
     def _extract_content(self, page):
@@ -135,11 +145,12 @@ class PolicyCrawler:
                                 #     logger.debug("已跳过(非昨日)")
                                 #     continue
                                 
-                                # 3. 检查关键词 (已废弃，改用 LLM 筛选)
-                                # if not self._match_keywords(title):
-                                #     continue
+                                # 3. 检查关键词 (作为前置筛选)
+                                if not self._match_keywords(title):
+                                    logger.debug(f"跳过(关键词不匹配): {title}")
+                                    continue
                                     
-                                logger.info(f"发现候选政策(待筛选): {title}")
+                                logger.info(f"发现候选政策(待LLM二次筛选): {title}")
                                 
                                 # 进入详情页抓取正文
                                 # 为了防止爬虫过快被封，稍微暂停
