@@ -1,31 +1,43 @@
+# 全局配置
+
+# 采集配置
+keywords:
+  - "数字经济"
+  - "算力"
+  - "基础设施"
+  - "数实融合"
+  - "实体经济"
+  - "数据要素"
+  - "人工智能"
+  - "大数据"
+  - "人才"
+  - "智能制造"
+
+# 爬虫配置
 crawler:
   headless: true
-  retries: 3
   timeout: 30000
-keywords:
-- 数字经济
-- 算力
-- 基础设施
-- 数实融合
-- 实体经济
-- 数据要素
-- 人工智能
-- 大数据
-- 人才
-- 智能制造
+  retries: 3
+
+# 摘要配置
+summary:
+  enable_llm: true
+  provider: "openai"
+  api_key: "${OPENAI_API_KEY}" # CI/CD 环境中自动读取变量
+  base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+  model: "qwen-plus"
+  max_tokens: 500
+
+# 推送配置
 notification:
   pushplus:
     enabled: false
-    token: ''
+    token: "${PUSHPLUS_TOKEN}"
+  
   webhook:
     enabled: true
-    url: https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=91ebf80c-66e4-41c5-96a0-ccca9a47e37c
+    url: "${WEBHOOK_URL}" # CI/CD 环境中自动读取变量
+
+# 调度配置
 schedule:
-  time: 08:00
-summary:
-  api_key: sk-d34a2984032c4b1fa1b1831dc011b784
-  base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
-  enable_llm: true
-  max_tokens: 500
-  model: qwen-flash
-  provider: openai
+  time: "09:00"

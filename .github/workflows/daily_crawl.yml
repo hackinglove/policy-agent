@@ -33,6 +33,7 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }} 
           # 如果使用了 PushPlus 或 Webhook
           PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
+          WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
         run: |
           # 运行主程序，--now 立即执行
           python main.py --now
