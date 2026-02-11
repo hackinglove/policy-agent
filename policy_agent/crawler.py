@@ -7,11 +7,11 @@ from urllib.parse import urljoin
 from .utils import logger
 
 class PolicyCrawler:
-    def __init__(self, config, sources, storage):
+    def __init__(self, config, sources, storage, summarizer=None):
         self.config = config
         self.sources = sources
         self.storage = storage
-        self.keywords = config.get('keywords', [])
+        self.summarizer = summarizer
         
     def _is_yesterday(self, date_str):
         """
@@ -48,15 +48,6 @@ class PolicyCrawler:
                 
         if parsed_date:
             return parsed_date == yesterday
-        return False
-
-    def _match_keywords(self, text):
-        """检查文本是否包含关键词"""
-        if not text:
-            return False
-        for kw in self.keywords:
-            if kw in text:
-                return True
         return False
 
     def _extract_content(self, page):
@@ -144,11 +135,11 @@ class PolicyCrawler:
                                 #     logger.debug("已跳过(非昨日)")
                                 #     continue
                                 
-                                # 3. 检查关键词
-                                if not self._match_keywords(title):
-                                    continue
+                                # 3. 检查关键词 (已废弃，改用 LLM 筛选)
+                                # if not self._match_keywords(title):
+                                #     continue
                                     
-                                logger.info(f"发现新政策: {title}")
+                                logger.info(f"发现候选政策(待筛选): {title}")
                                 
                                 # 进入详情页抓取正文
                                 # 为了防止爬虫过快被封，稍微暂停
@@ -159,14 +150,28 @@ class PolicyCrawler:
                                     content = self._extract_content(detail_page)
                                     detail_page.close()
                                     
-                                    policy = {
-                                        "title": title,
-                                        "source_name": source['name'],
-                                        "publish_date": date_str,
-                                        "url": full_url,
-                                        "content": content # 暂存内容用于生成摘要，不存入DB
-                                    }
-                                    new_policies.append(policy)
+                                    # LLM 智能筛选
+                                    is_relevant = False
+                                    if self.summarizer:
+                                        # 传入标题和正文进行判断
+                                        is_relevant = self.summarizer.check_policy_relevance(title, content)
+                                    else:
+                                        # 如果没有 summarizer，回退到关键词或默认通过
+                                        # 这里既然移除了关键词检查，若无 LLM 则默认通过
+                                        is_relevant = True
+                                    
+                                    if is_relevant:
+                                        logger.info(f"✅ 筛选通过: {title}")
+                                        policy = {
+                                            "title": title,
+                                            "source_name": source['name'],
+                                            "publish_date": date_str,
+                                            "url": full_url,
+                                            "content": content # 暂存内容用于生成摘要，不存入DB
+                                        }
+                                        new_policies.append(policy)
+                                    else:
+                                        logger.info(f"❌ 筛选不通过: {title}")
                                     
                                 except Exception as e:
                                     logger.error(f"抓取详情页失败 {full_url}: {e}")

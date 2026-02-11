@@ -20,8 +20,8 @@ def job():
 
     # 2. 初始化模块
     storage = Storage()
-    crawler = PolicyCrawler(config, sources, storage)
     summarizer = Summarizer(config)
+    crawler = PolicyCrawler(config, sources, storage, summarizer)
     notifier = Notifier(config)
 
     # 3. 抓取 (返回 policy 对象列表)

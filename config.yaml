@@ -1,18 +1,5 @@
 # 全局配置
 
-# 采集配置
-keywords:
-  - "数字经济"
-  - "算力"
-  - "基础设施"
-  - "数实融合"
-  - "实体经济"
-  - "数据要素"
-  - "人工智能"
-  - "大数据"
-  - "人才"
-  - "智能制造"
-
 # 爬虫配置
 crawler:
   headless: true
@@ -26,6 +13,7 @@ summary:
   api_key: "${OPENAI_API_KEY}" # CI/CD 环境中自动读取变量
   base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
   model: "qwen-plus"
+  filter_model: "qwen-flash" # 用作快速筛选的模型
   max_tokens: 500
 
 # 推送配置
