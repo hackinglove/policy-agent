@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数字经济政策数据库</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Vue.js -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+</head>
+<body class="bg-slate-50 text-slate-800">
+    <div id="app" class="min-h-screen flex flex-col">
+        <!-- Header -->
+        <header class="bg-white border-b border-slate-200 sticky top-0 z-10">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between h-16 items-center">
+                    <div class="flex items-center gap-2">
+                        <i class="ph ph-bank text-2xl text-blue-600"></i>
+                        <h1 class="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600">
+                            数字经济政策采集 Agent
+                        </h1>
+                    </div>
+                    <div class="text-sm text-slate-500">
+                        更新时间: {{ stats.updated_at || 'Loading...' }}
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
+            
+            <!-- Stats Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                    <div class="text-sm font-medium text-slate-500 mb-1">政策总数</div>
+                    <div class="text-3xl font-bold text-slate-900">{{ policies.length }}</div>
+                </div>
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                    <div class="text-sm font-medium text-slate-500 mb-1">今日新增</div>
+                    <div class="text-3xl font-bold text-emerald-600">{{ todayCount }}</div>
+                </div>
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                    <div class="text-sm font-medium text-slate-500 mb-1">覆盖部门</div>
+                    <div class="text-3xl font-bold text-indigo-600">{{ stats.sources ? stats.sources.length : 0 }}</div>
+                </div>
+            </div>
+
+            <!-- Search & Filter -->
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-100 mb-6 flex flex-col md:flex-row gap-4">
+                <div class="relative flex-grow">
+                    <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                    <input 
+                        v-model="search" 
+                        type="text" 
+                        placeholder="搜索标题、摘要内容..." 
+                        class="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors"
+                    >
+                </div>
+                <div class="md:w-64">
+                    <select v-model="selectedSource" class="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white">
+                        <option value="">所有发布部门</option>
+                        <option v-for="source in stats.sources" :key="source" :value="source">{{ source }}</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Policy List -->
+            <div class="space-y-4">
+                <div v-if="filteredPolicies.length === 0" class="text-center py-12 text-slate-400 bg-white rounded-xl border border-dashed border-slate-200">
+                    <i class="ph ph-file-dashed text-4xl mb-2"></i>
+                    <p>没有找到匹配的政策</p>
+                </div>
+
+                <div v-for="policy in filteredPolicies" :key="policy.id" class="bg-white p-6 rounded-xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow group">
+                    <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                        <div class="flex-grow">
+                            <div class="flex items-center gap-2 mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                <span class="bg-slate-100 px-2 py-0.5 rounded">{{ policy.source_name }}</span>
+                                <span>{{ policy.publish_date }}</span>
+                            </div>
+                            <h3 class="text-lg font-bold text-slate-900 mb-2 group-hover:text-blue-600 transition-colors">
+                                <a :href="policy.url" target="_blank">{{ policy.title }}</a>
+                            </h3>
+                            <p class="text-sm text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-lg border border-slate-100" v-if="policy.summary">
+                                🤖 <b>AI 摘要：</b>{{ policy.summary }}
+                            </p>
+                        </div>
+                        <div class="flex-shrink-0">
+                            <a :href="policy.url" target="_blank" class="inline-flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-700">
+                                查看原文 <i class="ph ph-arrow-square-out"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Pagination (Simple load more) -->
+            <div class="mt-8 text-center" v-if="displayLimit < filteredPoliciesAll.length">
+                <button @click="loadMore" class="px-6 py-2 bg-white border border-slate-200 text-slate-600 rounded-full hover:bg-slate-50 transition-colors shadow-sm">
+                    加载更多
+                </button>
+            </div>
+
+        </main>
+
+        <!-- Footer -->
+        <footer class="bg-white border-t border-slate-200 mt-12 py-8">
+            <div class="max-w-7xl mx-auto px-4 text-center text-sm text-slate-400">
+                <p>Powered by GitHub Actions & Vue.js</p>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        const { createApp, ref, computed, onMounted } = Vue
+
+        createApp({
+            setup() {
+                const policies = ref([])
+                const stats = ref({})
+                const search = ref('')
+                const selectedSource = ref('')
+                const displayLimit = ref(20)
+
+                // Fetch data
+                onMounted(async () => {
+                    try {
+                        const [pRes, sRes] = await Promise.all([
+                            fetch('policies.json'),
+                            fetch('stats.json')
+                        ])
+                        policies.value = await pRes.json()
+                        stats.value = await sRes.json()
+                    } catch (e) {
+                        console.error("Data load failed", e)
+                        // Fallback mock data if file not found locally
+                        // policies.value = []
+                    }
+                })
+
+                const todayCount = computed(() => {
+                    if (!policies.value.length) return 0
+                    const today = new Date().toISOString().split('T')[0]
+                    // policies.value[0].publish_date format might be YYYY-MM-DD
+                    // Simple check
+                    return policies.value.filter(p => p.publish_date === today).length
+                })
+
+                const filteredPoliciesAll = computed(() => {
+                    return policies.value.filter(p => {
+                        const matchaSearch = !search.value || 
+                            p.title.toLowerCase().includes(search.value.toLowerCase()) || 
+                            (p.summary && p.summary.toLowerCase().includes(search.value.toLowerCase()))
+                        
+                        const matchSource = !selectedSource.value || p.source_name === selectedSource.value
+                        
+                        return matchaSearch && matchSource
+                    })
+                })
+
+                const filteredPolicies = computed(() => {
+                    return filteredPoliciesAll.value.slice(0, displayLimit.value)
+                })
+
+                const loadMore = () => {
+                    displayLimit.value += 20
+                }
+
+                return {
+                    policies,
+                    stats,
+                    search,
+                    selectedSource,
+                    filteredPolicies,
+                    filteredPoliciesAll,
+                    displayLimit,
+                    todayCount,
+                    loadMore
+                }
+            }
+        }).mount('#app')
+    </script>
+</body>
+</html>

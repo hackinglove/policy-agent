@@ -1,0 +1,101 @@
+[
+  {
+    "name": "国家发展改革委-政策发布",
+    "url": "https://www.ndrc.gov.cn/xxgk/zcfb/index.html",
+    "is_dynamic": false,
+    "selectors": {
+      "item": "ul.u-list li",
+      "title": "a",
+      "link": "a",
+      "date": "span.date"
+    }
+  },
+  {
+    "name": "工业和信息化部-最新政策",
+    "url": "https://www.miit.gov.cn/xwfb/zxzc/index.html",
+    "is_dynamic": true,
+    "selectors": {
+      "item": "div.clist_con div.page-content ul li",
+      "title": "a",
+      "link": "a",
+      "date": "span"
+    }
+  },
+  {
+    "name": "科技部-政策文件",
+    "url": "https://www.most.gov.cn/xxgk/xinxifenlei/fdzdgknr/fgzc/gfxwj/",
+    "is_dynamic": false,
+    "selectors": {
+      "item": "#data_list li",
+      "title": "a",
+      "link": "a",
+      "date": "div.w_list_rq"
+    }
+  },
+  {
+    "name": "国家数据局-政策发布",
+    "url": "https://www.nda.gov.cn/sjj/zwgk/zcfb/list/index_pc_1.html",
+    "is_dynamic": false,
+    "selectors": {
+      "item": "ul.u-list li",
+      "title": "a",
+      "link": "a",
+      "date": "span"
+    }
+  },
+  {
+    "name": "北京市经信局-政策法规",
+    "url": "https://jxj.beijing.gov.cn/zwgk/2024zcwj/",
+    "is_dynamic": false,
+    "selectors": {
+      "item": "ul.list li",
+      "title": "a",
+      "link": "a",
+      "date": "span"
+    }
+  },
+  {
+    "name": "上海市经信委-公示公告",
+    "url": "https://www.sheitc.sh.gov.cn/zcfg/index.html",
+    "is_dynamic": true,
+    "selectors": {
+      "item": "ul.j-list-ul li",
+      "title": "a h2",
+      "link": "a",
+      "date": "span"
+    }
+  },
+  {
+    "name": "江苏省工信厅-政策发布",
+    "url": "https://gxt.jiangsu.gov.cn/col/col80179/index.html",
+    "is_dynamic": true,
+    "selectors": {
+      "item": "div.default_pgContainer li",
+      "title": "a",
+      "link": "a",
+      "date": "span"
+    }
+  },
+  {
+    "name": "浙江省经信厅-通知公告",
+    "url": "https://jxt.zj.gov.cn/col/col1229123362/index.html",
+    "is_dynamic": true,
+    "selectors": {
+      "item": "div.zfxxgk_zdgkc li",
+      "title": "a",
+      "link": "a",
+      "date": "span"
+    }
+  },
+  {
+    "name": "广东省工信厅-政策规划",
+    "url": "https://gdii.gd.gov.cn/zcgh3227/index.html",
+    "is_dynamic": true,
+    "selectors": {
+      "item": ".list ul li",
+      "title": "a",
+      "link": "a",
+      "date": "span"
+    }
+  }
+]
