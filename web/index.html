@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Policy Insight | 政策洞察系统</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Vue 3 -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+
+<div id="app" class="flex h-screen overflow-hidden">
+    
+    <!-- Sidebar -->
+    <aside class="w-64 bg-white border-r border-slate-200 flex flex-col z-10">
+        <div class="p-6">
+            <h1 class="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent flex items-center gap-2">
+                <i class="ph ph-hexagon fill-blue-600"></i>
+                Policy Insight
+            </h1>
+            <p class="text-xs text-slate-400 mt-1">本地私有化部署 v2.0</p>
+        </div>
+        
+        <nav class="flex-1 px-4 space-y-1">
+            <a href="#" @click="currentView = 'dashboard'" :class="{'bg-blue-50 text-blue-600': currentView === 'dashboard', 'text-slate-600 hover:bg-slate-50': currentView !== 'dashboard'}" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors">
+                <i class="ph ph-squares-four text-lg"></i>
+                仪表盘
+            </a>
+            <a href="#" @click="currentView = 'policies'" :class="{'bg-blue-50 text-blue-600': currentView === 'policies', 'text-slate-600 hover:bg-slate-50': currentView !== 'policies'}" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors">
+                <i class="ph ph-files text-lg"></i>
+                政策库
+            </a>
+            <a href="#" @click="currentView = 'settings'" :class="{'bg-blue-50 text-blue-600': currentView === 'settings', 'text-slate-600 hover:bg-slate-50': currentView !== 'settings'}" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors">
+                <i class="ph ph-gear text-lg"></i>
+                系统设置
+            </a>
+        </nav>
+
+        <div class="p-4 border-t border-slate-100">
+            <button @click="triggerCrawl" :disabled="crawling" class="w-full flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white py-2 px-4 rounded-lg text-sm transition-all shadow-lg shadow-slate-200 disabled:opacity-70 disabled:cursor-not-allowed">
+                <i class="ph ph-arrows-clockwise" :class="{'animate-spin': crawling}"></i>
+                {{ crawling ? '任务运行中...' : '立即更新数据' }}
+            </button>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 overflow-y-auto bg-slate-50/50 relative">
+        <!-- Header -->
+        <header class="sticky top-0 bg-white/80 backdrop-blur-md border-b border-slate-200 px-8 py-4 flex justify-between items-center z-20">
+            <h2 class="text-lg font-semibold text-slate-800">{{ viewTitle }}</h2>
+            <div class="flex items-center gap-4">
+                <div class="relative">
+                    <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                    <input v-model="searchQuery" @keyup.enter="fetchPolicies" type="text" placeholder="搜索政策标题或内容..." class="pl-10 pr-4 py-2 bg-slate-100 border-transparent focus:bg-white focus:border-blue-500 rounded-full text-sm w-64 transition-all outline-none border">
+                </div>
+                <div class="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 cursor-pointer">
+                    <i class="ph ph-user"></i>
+                </div>
+            </div>
+        </header>
+
+        <div class="p-8 max-w-7xl mx-auto">
+            
+            <!-- Dashboard View -->
+            <div v-if="currentView === 'dashboard'" class="space-y-8 animate-fade-in">
+                <!-- Data Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="text-sm font-medium text-slate-500">政策总收录</p>
+                                <h3 class="text-3xl font-bold text-slate-800 mt-2">{{ stats.total_policies || 0 }}</h3>
+                            </div>
+                            <span class="p-2 bg-blue-50 text-blue-600 rounded-lg">
+                                <i class="ph ph-database text-xl"></i>
+                            </span>
+                        </div>
+                    </div>
+                    <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="text-sm font-medium text-slate-500">今日新增</p>
+                                <h3 class="text-3xl font-bold text-emerald-600 mt-2">+{{ stats.today_new || 0 }}</h3>
+                            </div>
+                            <span class="p-2 bg-emerald-50 text-emerald-600 rounded-lg">
+                                <i class="ph ph-trend-up text-xl"></i>
+                            </span>
+                        </div>
+                    </div>
+                    <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="text-sm font-medium text-slate-500">监控源站</p>
+                                <h3 class="text-3xl font-bold text-slate-800 mt-2">{{ Object.keys(stats.sources || {}).length }}</h3>
+                            </div>
+                            <span class="p-2 bg-purple-50 text-purple-600 rounded-lg">
+                                <i class="ph ph-globe text-xl"></i>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Latest Updates in Dashboard -->
+                <div>
+                    <h3 class="text-lg font-semibold mb-4">最新动态</h3>
+                    <div class="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
+                        <div v-for="policy in policies.slice(0, 5)" :key="policy.url" class="p-4 border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors flex items-center justify-between group">
+                            <div class="flex-1 min-w-0 pr-4">
+                                <h4 class="text-sm font-medium text-slate-900 truncate">
+                                    <a :href="policy.url" target="_blank" class="hover:text-blue-600">{{ policy.title }}</a>
+                                </h4>
+                                <div class="flex items-center gap-2 mt-1 text-xs text-slate-400">
+                                    <span class="px-2 py-0.5 bg-slate-100 rounded text-slate-500">{{ policy.source_name }}</span>
+                                    <span>{{ policy.publish_date }}</span>
+                                </div>
+                            </div>
+                            <a :href="policy.url" target="_blank" class="opacity-0 group-hover:opacity-100 p-2 text-slate-400 hover:text-blue-600 transition-all">
+                                <i class="ph ph-arrow-square-out text-lg"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Policies View -->
+            <div v-if="currentView === 'policies'" class="space-y-6">
+                <!-- Policy List -->
+                <div class="grid gap-4">
+                    <div v-for="policy in policies" :key="policy.url" class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all group">
+                        <div class="flex justify-between items-start mb-3">
+                            <h3 class="text-lg font-semibold text-slate-800 group-hover:text-blue-600 transition-colors line-clamp-1">
+                                <a :href="policy.url" target="_blank">{{ policy.title }}</a>
+                            </h3>
+                            <span class="text-xs font-mono text-slate-400 whitespace-nowrap ml-4">{{ policy.publish_date }}</span>
+                        </div>
+                        
+                        <!-- AI Summary Badge -->
+                        <div class="mb-3">
+                            <span class="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-indigo-50 text-indigo-700 text-xs font-medium border border-indigo-100">
+                                <i class="ph ph-sparkle-fill"></i> AI 摘要
+                            </span>
+                        </div>
+                        
+                        <p class="text-sm text-slate-600 leading-relaxed line-clamp-3 mb-4">
+                            {{ policy.summary || '暂无摘要...' }}
+                        </p>
+                        
+                        <div class="flex items-center justify-between pt-4 border-t border-slate-50">
+                            <div class="flex items-center gap-2">
+                                <img :src="`https://www.google.com/s2/favicons?domain=${new URL(policy.url).hostname}`" class="w-4 h-4 opacity-50">
+                                <span class="text-xs text-slate-500">{{ policy.source_name }}</span>
+                            </div>
+                            <a :href="policy.url" target="_blank" class="text-sm font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1 group/btn">
+                                阅读原文 <i class="ph ph-arrow-right transform group-hover/btn:translate-x-1 transition-transform"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Pagination -->
+                <div class="flex justify-center pt-8">
+                     <button @click="page > 1 && (page--, fetchPolicies())" class="px-4 py-2 bg-white border border-slate-200 rounded-l-lg hover:bg-slate-50 disabled:opacity-50">上一页</button>
+                     <span class="px-4 py-2 bg-white border-t border-b border-slate-200 text-sm font-medium flex items-center">第 {{ page }} 页</span>
+                     <button @click="page++, fetchPolicies()" class="px-4 py-2 bg-white border border-slate-200 rounded-r-lg hover:bg-slate-50">下一页</button>
+                </div>
+            </div>
+
+            <!-- Settings View (Placeholder) -->
+            <div v-if="currentView === 'settings'" class="max-w-2xl mx-auto">
+                <div class="bg-white p-8 rounded-2xl border border-slate-100 shadow-sm text-center py-20">
+                    <div class="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-400">
+                        <i class="ph ph-gear text-3xl"></i>
+                    </div>
+                    <h3 class="text-lg font-semibold text-slate-800">系统设置</h3>
+                    <p class="text-slate-500 mt-2">本地配置文件位于 config.yaml，请直接修改文件并重启服务。</p>
+                </div>
+            </div>
+
+        </div>
+    </main>
+</div>
+
+<script>
+    const { createApp, ref, onMounted, computed, watch } = Vue;
+
+    createApp({
+        setup() {
+            const currentView = ref('dashboard');
+            const policies = ref([]);
+            const stats = ref({});
+            const searchQuery = ref('');
+            const page = ref(1);
+            const crawling = ref(false);
+
+            const viewTitle = computed(() => {
+                const map = {
+                    'dashboard': '仪表盘概述',
+                    'policies': '政策数据库',
+                    'settings': '系统设置'
+                };
+                return map[currentView.value];
+            });
+
+            // Fetch Data
+            const fetchPolicies = async () => {
+                const res = await fetch(`/api/policies?keyword=${searchQuery.value}&page=${page.value}`);
+                policies.value = await res.json();
+            };
+
+            const fetchStats = async () => {
+                const res = await fetch('/api/stats');
+                stats.value = await res.json();
+            };
+
+            const triggerCrawl = async () => {
+                crawling.value = true;
+                try {
+                    await fetch('/api/crawl', { method: 'POST' });
+                    alert('爬虫任务已启动，请稍后刷新查看数据');
+                } catch (e) {
+                    alert('启动失败');
+                } finally {
+                    setTimeout(() => crawling.value = false, 3000);
+                }
+            };
+
+            // Watch & Init
+            watch(currentView, (newVal) => {
+                if(newVal === 'policies') fetchPolicies();
+            });
+
+            onMounted(() => {
+                fetchStats();
+                fetchPolicies(); // Preload
+            });
+
+            return {
+                currentView,
+                viewTitle,
+                policies,
+                stats,
+                searchQuery,
+                page,
+                crawling,
+                fetchPolicies,
+                triggerCrawl
+            };
+        }
+    }).mount('#app');
+</script>
+
+<style>
+/* Custom Animations */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in {
+    animation: fadeIn 0.4s ease-out forwards;
+}
+</style>
+</body>
+</html>
