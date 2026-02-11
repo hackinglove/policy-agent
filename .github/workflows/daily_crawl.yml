@@ -27,6 +27,11 @@ jobs:
           pip install -r requirements.txt
           playwright install chromium
 
+      - name: Restore DB from JSON
+        run: |
+          # 从 Git 中的 JSON 恢复数据库，保证历史数据不丢失
+          python import_data.py
+
       - name: Run Crawler
         env:
           # 配置 secrets (需要在 GitHub 仓库设置中添加)
@@ -42,6 +47,12 @@ jobs:
         run: |
           # 将 SQLite 数据导出为 JSON 给静态页面使用
           python export_data.py
+
+      - name: Commit and Push Data
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Auto update policy data"
+          file_pattern: "docs/*.json"
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
