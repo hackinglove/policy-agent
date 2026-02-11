@@ -97,5 +97,16 @@
       "link": "a",
       "date": "span"
     }
+  },
+  {
+    "name": "南京市数据局",
+    "url": "https://njsj.nanjing.gov.cn/njszwfwglbgs/?id=xxgkgknr",
+    "is_dynamic": false,
+    "selectors": {
+      "item": "div.Page",
+      "title": "a",
+      "link": "a",
+      "date": ""
+    }
   }
 ]
